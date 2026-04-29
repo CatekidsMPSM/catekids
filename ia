@@ -1,0 +1,209 @@
+<section class="page-section" id="ia-section">
+<div class="container" style="padding-top:20px;padding-bottom:40px;">
+  <div class="ia-hero">
+    <span class="ia-hero-icon">🤖</span>
+    <h2>Catequista IA</h2>
+    <p>Pregúntame sobre el catecismo, la Biblia, sacramentos y más. ¡Respondo en segundos!</p>
+  </div>
+  <div class="ia-chat-wrap">
+    <div class="ia-chat-msgs" id="ia-chat-msgs">
+      <div class="ia-msg bot"><div class="ia-avatar">🤖</div><div class="ia-bubble">¡Hola! Soy el Catequista IA de CateKids MPSM 🙏<br>Puedo ayudarte con:<br>• Los Sacramentos 💒<br>• La Biblia 📖<br>• Los Mandamientos 📜<br>• Las Oraciones 🙏<br>• La vida de Jesús ✝️<br><br>¡Escribe tu pregunta!</div></div>
+    </div>
+    <div class="ia-input-row">
+      <input class="ia-input" id="ia-input" placeholder="Escribe tu pregunta..." onkeydown="if(event.key==='Enter')sendIA()"/>
+      <button class="ia-send-btn" onclick="sendIA()">➤</button>
+    </div>
+    <div class="ia-quickbtns">
+      <button class="quick-btn" onclick="quickIA('¿Qué son los sacramentos?')">💒 Sacramentos</button>
+      <button class="quick-btn" onclick="quickIA('¿Quién es Jesús?')">✝️ Jesús</button>
+      <button class="quick-btn" onclick="quickIA('¿Cuáles son los mandamientos?')">📜 Mandamientos</button>
+      <button class="quick-btn" onclick="quickIA('¿Cómo rezo?')">🙏 Oración</button>
+      <button class="quick-btn" onclick="quickIA('¿Quiénes son los ángeles?')">👼 Ángeles</button>
+      <button class="quick-btn" onclick="quickIA('¿Qué es la Trinidad?')">☁️ Trinidad</button>
+    </div>
+  </div>
+</div>
+</section>
+
+<script>
+// ⚠️ IMPORTANTE: Genera una NUEVA CLAVE en https://aistudio.google.com/apikey
+// (Revoca la anterior que compartiste por accidente)
+const GEMINI_API_KEY = "AIzaSyC11k71oVIBS3c_QLVvbhBd6qSoLSBioGg";  // 👈 Reemplaza con tu clave nueva
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+async function sendIA() {
+  const input = document.getElementById("ia-input");
+  const pregunta = input.value.trim();
+  if (!pregunta) return;
+
+  const chatMsgs = document.getElementById("ia-chat-msgs");
+
+  // Mostrar pregunta del usuario
+  const userMsgDiv = document.createElement("div");
+  userMsgDiv.className = "ia-msg user";
+  userMsgDiv.innerHTML = `<div class="ia-avatar">👤</div><div class="ia-bubble">${escapeHtml(pregunta)}</div>`;
+  chatMsgs.appendChild(userMsgDiv);
+  input.value = "";
+  chatMsgs.scrollTop = chatMsgs.scrollHeight;
+
+  // Mostrar "escribiendo..."
+  const botMsgDiv = document.createElement("div");
+  botMsgDiv.className = "ia-msg bot";
+  botMsgDiv.innerHTML = `<div class="ia-avatar">🤖</div><div class="ia-bubble">✍️ Escribiendo...</div>`;
+  chatMsgs.appendChild(botMsgDiv);
+  chatMsgs.scrollTop = chatMsgs.scrollHeight;
+
+  try {
+    const response = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Eres un catequista católico amable, claro y apropiado para niños y familias. Responde desde la fe cristiana católica con amor y respeto. Pregunta: ${pregunta}`
+          }]
+        }]
+      })
+    });
+
+    const data = await response.json();
+    
+    // Verificar si hay error de API
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
+    
+    let respuesta = data.candidates?.[0]?.content?.parts?.[0]?.text || "Lo siento, no pude responder. Intenta de nuevo.";
+
+    // Reemplazar el mensaje de "escribiendo..."
+    botMsgDiv.innerHTML = `<div class="ia-avatar">🤖</div><div class="ia-bubble">${escapeHtml(respuesta)}</div>`;
+    chatMsgs.scrollTop = chatMsgs.scrollHeight;
+  } catch (error) {
+    console.error("Error:", error);
+    botMsgDiv.innerHTML = `<div class="ia-avatar">🤖</div><div class="ia-bubble">❌ Error: ${error.message || "No pude conectar con la IA. Revisa tu conexión o la clave API."}</div>`;
+  }
+}
+
+// Función para evitar inyección HTML y convertir saltos de línea
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML.replace(/\n/g, "<br>");
+}
+
+// Función para preguntas rápidas
+function quickIA(pregunta) {
+  document.getElementById("ia-input").value = pregunta;
+  sendIA();
+}
+</script>
+
+<style>
+/* Estilos complementarios para el chat (si no los tienes ya) */
+.ia-chat-wrap {
+  background: #f8f9fa;
+  border-radius: 20px;
+  padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.ia-chat-msgs {
+  height: 400px;
+  overflow-y: auto;
+  padding: 15px;
+  background: white;
+  border-radius: 15px;
+  margin-bottom: 15px;
+}
+
+.ia-msg {
+  display: flex;
+  margin-bottom: 15px;
+  gap: 10px;
+}
+
+.ia-msg.user {
+  flex-direction: row-reverse;
+}
+
+.ia-avatar {
+  width: 40px;
+  height: 40px;
+  background: #6c5ce7;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.ia-msg.user .ia-avatar {
+  background: #00b894;
+}
+
+.ia-bubble {
+  max-width: 70%;
+  padding: 10px 15px;
+  border-radius: 18px;
+  background: #e9ecef;
+  color: #2d3436;
+}
+
+.ia-msg.user .ia-bubble {
+  background: #6c5ce7;
+  color: white;
+}
+
+.ia-input-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.ia-input {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid #ddd;
+  border-radius: 25px;
+  font-size: 16px;
+}
+
+.ia-send-btn {
+  background: #6c5ce7;
+  color: white;
+  border: none;
+  width: 50px;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 20px;
+  transition: transform 0.2s;
+}
+
+.ia-send-btn:hover {
+  transform: scale(1.05);
+}
+
+.ia-quickbtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.quick-btn {
+  background: white;
+  border: 1px solid #6c5ce7;
+  padding: 8px 15px;
+  border-radius: 20px;
+  cursor: pointer;
+  color: #6c5ce7;
+  transition: all 0.2s;
+}
+
+.quick-btn:hover {
+  background: #6c5ce7;
+  color: white;
+}
+</style>
