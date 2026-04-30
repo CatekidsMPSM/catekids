@@ -1866,14 +1866,269 @@ OBRAS DE MISERICORDIA ESPIRITUALES: Enseñar al que no sabe, dar buen consejo, c
 - Cuando alguien saluda, saluda de vuelta con entusiasmo y pregunta en qué puedes ayudar.
 - Si alguien tiene una duda espiritual, un problema o algo que lo preocupa, escúchalo con empatía y ofrece palabras de aliento desde la fe.`;
 
-function buscarRespuestaIA(q) {
-  const p = q.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  for(const r of IA_RESPUESTAS) {
-    for(const c of r.claves) {
-      if(p.includes(c.normalize('NFD').replace(/[\u0300-\u036f]/g,''))) return r.resp;
+// ============================================================
+// CATEQUISTA IA — SISTEMA LOCAL COMPLETO (sin API)
+// ============================================================
+
+async function sendIA() {
+  const input = document.getElementById('ia-input');
+  const msg = input.value.trim();
+  if(!msg) return;
+  input.value = '';
+  appendIAMsg(msg, 'user');
+  showIATyping();
+  // Simular que "piensa" un momento para sentirse natural
+  setTimeout(() => {
+    removeIATyping();
+    const respuesta = responderCatequista(msg);
+    appendIAMsg(respuesta, 'bot');
+  }, 700 + Math.random() * 600);
+}
+
+function normalizar(t) {
+  return t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[¿?¡!.,;:]/g,'');
+}
+
+function responderCatequista(msg) {
+  const q = normalizar(msg);
+  const tiene = (...palabras) => palabras.some(p => q.includes(normalizar(p)));
+
+  // ── SALUDOS ──
+  if(tiene('hola','buenas','buenos dias','buenas tardes','buenas noches','hey','hi','ola')) {
+    const saludos = [
+      '¡Hola! 😊 Bienvenido al chat de <b>CateKids MPSM</b>. Puedes preguntarme sobre horarios de grupos, catequistas, sacramentos, oraciones, la Biblia y mucho más. ¿En qué te ayudo?',
+      '¡Qué gusto saludarte! 🙏 Soy el asistente de CateKids MPSM. Puedes preguntarme lo que quieras sobre la catequesis, horarios o la fe católica. ¿Qué necesitas?',
+      '¡Hola! ✨ Estoy aquí para ayudarte con todo lo de CateKids. Horarios, grupos, sacramentos, oraciones... ¡pregunta lo que quieras!'
+    ];
+    return saludos[Math.floor(Math.random()*saludos.length)];
+  }
+
+  // ── DESPEDIDAS ──
+  if(tiene('adios','hasta luego','bye','nos vemos','chao','gracias','thank')) {
+    return '¡Hasta luego! 🙏 Que Dios te bendiga. Si tienes más dudas, aquí estaré. ¡Que tengas un lindo día! ☀️';
+  }
+
+  // ── AVISOS ACTUALES (lee la página en vivo) ──
+  if(tiene('aviso','avisos','anuncio','anuncios','novedad','novedades','que hay','que pasa','evento','eventos','actividad','actividades')) {
+    try {
+      const els = document.querySelectorAll('.aviso-card, .aviso-item, [class*="aviso"]');
+      const lista = [];
+      els.forEach(el => {
+        const txt = el.innerText.trim().replace(/\s+/g,' ');
+        if(txt.length > 15) lista.push(txt);
+      });
+      if(lista.length) {
+        return '📢 <b>Avisos actuales de CateKids:</b><br><br>' + lista.map((a,i)=>`${i+1}. ${a}`).join('<br><br>') + '<br><br>Para más información: WhatsApp <b>8131251943</b> 😊';
+      }
+    } catch(e){}
+    return '📢 Por el momento no hay avisos publicados. Para información actualizada contacta al equipo: WhatsApp <b>8131251943</b> o <a href="https://m.me/catekidsMPSM" target="_blank">m.me/catekidsMPSM</a> 😊';
+  }
+
+  // ── HORARIOS GENERALES ──
+  if(tiene('horario','horarios','hora','cuando','que dia','dias','sabado','domingo','lunes','martes','miercoles','jueves','viernes')) {
+    if(tiene('sabado','sábado')) {
+      return '📅 <b>Grupos que tienen clase el Sábado:</b><br><br>💛 <b>Comunión:</b> San Juan Bautista (8AM), Ntra. Sra. de Lourdes (10AM), Virgen del Carmen (11AM), Inm. Corazón de María (12PM), Santa Margarita María (12:20PM), Santa Clara de Asís (10AM Capilla Roble)<br><br>❤️ <b>Confirmación:</b> San Martín de Porres (8AM), San Mateo (10AM), Sta. María de Guadalupe (12PM), Sto. Niño de Atocha (2PM), Sta. Rita de Cassia (2PM SJPII), San Juan Vianney (4PM), Sta. Mónica (10:40AM Jud.), San José Sánchez del Río (10AM Roble)<br><br>💙 <b>Iniciación:</b> San Pedro (8AM), San José (10AM), San Pablo (12PM), Sta. María Magdalena (4PM), San Cayetano (10AM Roble), Beato Carlos Acuti (9AM Jud.)<br><br>🩶 <b>Perseverante:</b> San Esteban (10AM), San Juan Bosco (12PM), Santa Lucía (10AM Roble), Santa Faustina (12PM Jud.)<br><br>💜 <b>Perseverante 2:</b> Sagrado Corazón de Jesús (12PM)';
+    }
+    if(tiene('domingo')) {
+      return '📅 <b>Grupos del Domingo:</b><br><br>💛 San Judas Tadeo — 1:30 PM — Salón Santa Faustina<br>💙 San Benito — 8:00 AM — Salón Santa Faustina<br>💙 San Juan Evangelista — 10:00 AM — Salón Santa Faustina<br>❤️ San Tarcisio — 10:00 AM — Capilla Ntra. Sra. del Roble<br>🩶 San Andrés Apóstol — 6:00 PM — Salón Santa Faustina';
+    }
+    if(tiene('lunes')) {
+      return '📅 <b>Grupos del Lunes:</b><br><br>💛 San Patricio — 6:00 PM — Salón Santa Faustina<br>💛 San Francisco de Asís — 6:00 PM — Salón San Juan Pablo II';
+    }
+    if(tiene('martes')) {
+      return '📅 <b>Grupos del Martes:</b><br><br>💛 San Antonio de Padua — 6:00 PM — Salón San Juan Pablo II<br>❤️ San Agustín — 6:00 PM — Salón Santa Faustina';
+    }
+    if(tiene('miercoles','miércoles')) {
+      return '📅 <b>Grupos del Miércoles:</b><br><br>❤️ San Juan Diego — 4:00 PM — Salón Santa Faustina<br>💙 San Juan Pablo II — 6:00 PM — Salón Santa Faustina';
+    }
+    if(tiene('viernes')) {
+      return '📅 <b>Grupos del Viernes:</b><br><br>❤️ Santa Juliana — 6:00 PM — Salón Santa Faustina';
+    }
+    return '📅 <b>Horarios por día:</b><br><br>• <b>Lunes:</b> San Patricio, San Francisco de Asís (6PM)<br>• <b>Martes:</b> San Antonio de Padua, San Agustín (6PM)<br>• <b>Miércoles:</b> San Juan Diego (4PM), San Juan Pablo II (6PM)<br>• <b>Viernes:</b> Santa Juliana (6PM)<br>• <b>Sábado:</b> La mayoría de grupos (8AM a 4PM)<br>• <b>Domingo:</b> San Judas Tadeo, San Benito, San Juan Evangelista, San Tarcisio, San Andrés<br><br>¿Quieres saber el horario de un grupo en específico? ¡Dime el nombre! 😊';
+  }
+
+  // ── GRUPOS POR NIVEL ──
+  if(tiene('comunion','comunión','primera comunion','primera comunión')) {
+    return '💛 <b>Grupos de Comunión</b> (preparación para la 1ª Comunión):<br><br>• San Juan Bautista — Armandina Faz — Sáb 8AM — Salón SJPII<br>• Ntra. Sra. de Lourdes — Rosa Idalia Hernández — Sáb 10AM — Salón SJPII<br>• Inm. Corazón de María — Marlen Hernández — Sáb 12PM — Salón SJPII<br>• San Judas Tadeo — Jesús Tadeo G. / Ana Fernanda R. — Dom 1:30PM — Salón SF<br>• Virgen del Carmen — Julia Morín — Sáb 11AM — Centro Comunitario<br>• San Patricio — Raquel Fuentes — Lun 6PM — Salón SF<br>• San Francisco de Asís — Fidencio A. / Johana D. — Lun 6PM — Salón SJPII<br>• San Antonio de Padua — Verónica Arredondo — Mar 6PM — Salón SJPII<br>• Santa Clara de Asís — Aracely A. / Sebastián S. — Sáb 10AM — Capilla Roble<br>• Santa Margarita María — Nancy González — Sáb 12:20PM — Capilla San Judas Tadeo';
+  }
+
+  if(tiene('confirmacion','confirmación')) {
+    return '❤️ <b>Grupos de Confirmación:</b><br><br>• San Martín de Porres — Marisol Valero — Sáb 8AM — Salón SF<br>• Santo Niño de Atocha — Agustina Madrid — Sáb 2PM — Salón SF<br>• San Mateo — Daniela H. / Ángel A. — Sáb 10AM — Salón SF<br>• Sta. María de Guadalupe — Hiliamor R. / Leslie H. — Sáb 12PM — Salón SF<br>• Santa Rita de Cassia — Cecilia del Ángel — Sáb 2PM — Salón SJPII<br>• San Juan Vianney — Jorge Villatoro — Sáb 4PM — Salón SJPII<br>• San Agustín — Agustina Madrid — Mar 6PM — Salón SF<br>• San Juan Diego — Laura Regalado — Mié 4PM — Salón SF<br>• Santa Juliana — Mildred A. / Aliza A. — Vie 6PM — Salón SF<br>• San José Sánchez del Río — Cayetana M. / Jimena G. — Sáb 10AM — Capilla Roble<br>• San Tarcisio — Ricarda S. / Martín T. — Dom 10AM — Capilla Roble<br>• Santa Mónica — María Lidia Martínez — Sáb 10:40AM — Capilla San Judas';
+  }
+
+  if(tiene('iniciacion','iniciación','iniciar','primer año','nuevo','inscrib','inscripcion','inscripción')) {
+    return '💙 <b>Grupos de Iniciación</b> (primer contacto con la catequesis):<br><br>• San Pedro — Silvia Capistran — Sáb 8AM — Salón SF<br>• San José — Hiliamor R. / Ian y Felipe A. — Sáb 10AM — Salón SF<br>• San Pablo — Fidencio A. / Grecia L. — Sáb 12PM — Salón SF<br>• Sta. María Magdalena — Aurora H. / Samantha H. — Sáb 4PM — Salón SF<br>• San Benito — Esther Hernández — Dom 8AM — Salón SF<br>• San Juan Evangelista — Ana Patricia T. / Andrea G. — Dom 10AM — Salón SF<br>• San Nicolás de Bari — Jesús Emérito Salinas — Lun 6:30PM — Salón SF<br>• San Juan Pablo II — Laura R. / Aldegunda S. — Mié 6PM — Salón SF<br>• San Cayetano — Liliana G. / Karla A. — Sáb 10AM — Capilla Roble<br>• Beato Carlos Acuti — Cecilia H. / Jarely M. — Sáb 9AM — Capilla San Judas';
+  }
+
+  if(tiene('perseverante','perseverancia')) {
+    return '🩶 <b>Grupos Perseverante:</b><br>• San Esteban — Fidencio Alvarado M. — Sáb 10AM — Salón SF<br>• San Juan Bosco — Ángel A. / Daniela H. — Sáb 12PM — Salón SF<br>• San Andrés Apóstol — Edil A. / Laura R. — Dom 6PM — Salón SF<br>• Santa Lucía — Ricarda Santiago — Sáb 10AM — Capilla Roble<br>• Santa Faustina — Alba Rosa M. / Estrella N. — Sáb 12PM — Capilla San Judas<br><br>💜 <b>Perseverante 2:</b><br>• Sagrado Corazón de Jesús — Fidencio Alvarado M. — Sáb 12PM — Salón SF';
+  }
+
+  // ── BUSCAR GRUPO POR NOMBRE ──
+  const grupos = [
+    {nombre:'san juan bautista', catequista:'Armandina Faz', dia:'Sábado', hora:'8:00 AM', salon:'Salón San Juan Pablo II', nivel:'💛 Comunión'},
+    {nombre:'nuestra señora de lourdes', catequista:'Rosa Idalia Hernández', dia:'Sábado', hora:'10:00 AM', salon:'Salón San Juan Pablo II', nivel:'💛 Comunión'},
+    {nombre:'inmaculado corazon de maria', catequista:'Marlen Hernández', dia:'Sábado', hora:'12:00 PM', salon:'Salón San Juan Pablo II', nivel:'💛 Comunión'},
+    {nombre:'san judas tadeo', catequista:'Jesús Tadeo García / Ana Fernanda Rodríguez', dia:'Domingo', hora:'1:30 PM', salon:'Salón Santa Faustina', nivel:'💛 Comunión'},
+    {nombre:'virgen del carmen', catequista:'Julia Morín', dia:'Sábado', hora:'11:00 AM', salon:'Centro Comunitario', nivel:'💛 Comunión'},
+    {nombre:'san patricio', catequista:'Raquel Fuentes', dia:'Lunes', hora:'6:00 PM', salon:'Salón Santa Faustina', nivel:'💛 Comunión'},
+    {nombre:'san francisco de asis', catequista:'Fidencio Alvarado / Johana Decire', dia:'Lunes', hora:'6:00 PM', salon:'Salón San Juan Pablo II', nivel:'💛 Comunión'},
+    {nombre:'san antonio de padua', catequista:'Verónica Arredondo', dia:'Martes', hora:'6:00 PM', salon:'Salón San Juan Pablo II', nivel:'💛 Comunión'},
+    {nombre:'santa clara de asis', catequista:'Aracely Andrés / Sebastián Santiago', dia:'Sábado', hora:'10:00 AM', salon:'Capilla Ntra. Sra. del Roble', nivel:'💛 Comunión'},
+    {nombre:'santa margarita maria', catequista:'Nancy González', dia:'Sábado', hora:'12:20 PM', salon:'Capilla San Judas Tadeo', nivel:'💛 Comunión'},
+    {nombre:'san martin de porres', catequista:'Marisol Valero', dia:'Sábado', hora:'8:00 AM', salon:'Salón Santa Faustina', nivel:'❤️ Confirmación'},
+    {nombre:'santo nino de atocha', catequista:'Agustina Madrid', dia:'Sábado', hora:'2:00 PM', salon:'Salón Santa Faustina', nivel:'❤️ Confirmación'},
+    {nombre:'san mateo', catequista:'Daniela Hernández / Ángel Alvarado', dia:'Sábado', hora:'10:00 AM', salon:'Salón Santa Faustina', nivel:'❤️ Confirmación'},
+    {nombre:'santa maria de guadalupe', catequista:'Hiliamor Rojas / Leslie Hernández', dia:'Sábado', hora:'12:00 PM', salon:'Salón Santa Faustina', nivel:'❤️ Confirmación'},
+    {nombre:'santa rita de cassia', catequista:'Cecilia del Ángel', dia:'Sábado', hora:'2:00 PM', salon:'Salón San Juan Pablo II', nivel:'❤️ Confirmación'},
+    {nombre:'san juan maria vianney', catequista:'Jorge Villatoro', dia:'Sábado', hora:'4:00 PM', salon:'Salón San Juan Pablo II', nivel:'❤️ Confirmación'},
+    {nombre:'san agustin', catequista:'Agustina Madrid', dia:'Martes', hora:'6:00 PM', salon:'Salón Santa Faustina', nivel:'❤️ Confirmación'},
+    {nombre:'san juan diego', catequista:'Laura Regalado', dia:'Miércoles', hora:'4:00 PM', salon:'Salón Santa Faustina', nivel:'❤️ Confirmación'},
+    {nombre:'santa juliana', catequista:'Mildred Arenas / Aliza Arenas', dia:'Viernes', hora:'6:00 PM', salon:'Salón Santa Faustina', nivel:'❤️ Confirmación'},
+    {nombre:'san jose sanchez del rio', catequista:'Cayetana Martínez / Jimena Granados', dia:'Sábado', hora:'10:00 AM', salon:'Capilla Ntra. Sra. del Roble', nivel:'❤️ Confirmación'},
+    {nombre:'san tarcisio', catequista:'Ricarda Santiago / Martín Trejo', dia:'Domingo', hora:'10:00 AM', salon:'Capilla Ntra. Sra. del Roble', nivel:'❤️ Confirmación'},
+    {nombre:'santa monica', catequista:'María Lidia Martínez', dia:'Sábado', hora:'10:40 AM', salon:'Capilla San Judas Tadeo', nivel:'❤️ Confirmación'},
+    {nombre:'san pedro', catequista:'Silvia Capistran', dia:'Sábado', hora:'8:00 AM', salon:'Salón Santa Faustina', nivel:'💙 Iniciación'},
+    {nombre:'san jose', catequista:'Hiliamor Rojas / Ian y Felipe Alvarado', dia:'Sábado', hora:'10:00 AM', salon:'Salón Santa Faustina', nivel:'💙 Iniciación'},
+    {nombre:'san pablo', catequista:'Fidencio Alvarado / Grecia Lázaro', dia:'Sábado', hora:'12:00 PM', salon:'Salón Santa Faustina', nivel:'💙 Iniciación'},
+    {nombre:'santa maria magdalena', catequista:'Aurora Hernández / Samantha Hernández', dia:'Sábado', hora:'4:00 PM', salon:'Salón Santa Faustina', nivel:'💙 Iniciación'},
+    {nombre:'san benito', catequista:'Esther Hernández', dia:'Domingo', hora:'8:00 AM', salon:'Salón Santa Faustina', nivel:'💙 Iniciación'},
+    {nombre:'san juan evangelista', catequista:'Ana Patricia Tovar / Andrea García', dia:'Domingo', hora:'10:00 AM', salon:'Salón Santa Faustina', nivel:'💙 Iniciación'},
+    {nombre:'san nicolas de bari', catequista:'Jesús Emérito Salinas', dia:'Lunes', hora:'6:30 PM', salon:'Salón Santa Faustina', nivel:'💙 Iniciación'},
+    {nombre:'san juan pablo ii', catequista:'Laura Regalado / Aldegunda Serna', dia:'Miércoles', hora:'6:00 PM', salon:'Salón Santa Faustina', nivel:'💙 Iniciación'},
+    {nombre:'san cayetano', catequista:'Liliana Granados / Karla Antonio', dia:'Sábado', hora:'10:00 AM', salon:'Capilla Ntra. Sra. del Roble', nivel:'💙 Iniciación'},
+    {nombre:'beato carlos acuti', catequista:'Cecilia Hernández / Jarely Martínez', dia:'Sábado', hora:'9:00 AM', salon:'Capilla San Judas Tadeo', nivel:'💙 Iniciación'},
+    {nombre:'san esteban', catequista:'Fidencio Alvarado Martínez', dia:'Sábado', hora:'10:00 AM', salon:'Salón Santa Faustina', nivel:'🩶 Perseverante'},
+    {nombre:'san juan bosco', catequista:'Ángel Alvarado / Daniela Hernández', dia:'Sábado', hora:'12:00 PM', salon:'Salón Santa Faustina', nivel:'🩶 Perseverante'},
+    {nombre:'san andres apostol', catequista:'Edil Altunar / Laura Regalado', dia:'Domingo', hora:'6:00 PM', salon:'Salón Santa Faustina', nivel:'🩶 Perseverante'},
+    {nombre:'santa lucia', catequista:'Ricarda Santiago', dia:'Sábado', hora:'10:00 AM', salon:'Capilla Ntra. Sra. del Roble', nivel:'🩶 Perseverante'},
+    {nombre:'santa faustina', catequista:'Alba Rosa Martínez / Estrella Nevarez', dia:'Sábado', hora:'12:00 PM', salon:'Capilla San Judas Tadeo', nivel:'🩶 Perseverante'},
+    {nombre:'sagrado corazon de jesus', catequista:'Fidencio Alvarado Martínez', dia:'Sábado', hora:'12:00 PM', salon:'Salón Santa Faustina', nivel:'💜 Perseverante 2'},
+  ];
+
+  for(const g of grupos) {
+    if(g.nombre.split(' ').some(p => p.length > 3 && q.includes(normalizar(p)))) {
+      // verificar que al menos 2 palabras del nombre coincidan
+      const palabrasG = g.nombre.split(' ').filter(p=>p.length>3);
+      const coincide = palabrasG.filter(p => q.includes(normalizar(p)));
+      if(coincide.length >= 1 && palabrasG.length <= 2 || coincide.length >= 2) {
+        return `📌 <b>Grupo ${g.nombre.replace(/\b\w/g,l=>l.toUpperCase())}</b><br><br>📚 Nivel: ${g.nivel}<br>👩‍🏫 Catequista: ${g.catequista}<br>📅 Día: ${g.dia}<br>⏰ Hora: ${g.hora}<br>📍 Lugar: ${g.salon}`;
+      }
     }
   }
-  return `¡Hola! 😊 Puedo ayudarte con:<br>💒 Sacramentos | ✝️ Jesús | 📜 Mandamientos<br>🙏 Oración | 📖 Biblia | 🌹 María | ☁️ Trinidad<br>⏰ Horarios de grupos | 👼 Santos | 📿 Rosario<br><br>¡Escribe tu pregunta sobre la fe! 🙏<br><em>"Jesús los ama."</em> — Marcos 10:14`;
+
+  // ── CATEQUISTAS ──
+  if(tiene('catequista','catequistas','maestra','maestro','quien da','quien enseña')) {
+    return '👩‍🏫 <b>CateKids MPSM tiene más de 47 catequistas voluntarios.</b><br><br>Si quieres saber quién da clases en un grupo específico, dime el nombre del grupo y te digo quién es su catequista, horario y salón. 😊<br><br>Por ejemplo: <em>"¿Quién da el grupo San Pedro?"</em>';
+  }
+
+  // ── SALONES / UBICACIÓN ──
+  if(tiene('salon','salón','donde','capilla','lugar','ubicacion','ubicación','como llego','donde queda','direccion','dirección')) {
+    return '📍 <b>Salones y espacios de CateKids MPSM:</b><br><br>🏫 <b>Salón San Juan Pablo II (SJPII)</b><br>🏫 <b>Salón Santa Faustina Kowalska (SF)</b><br>🏘️ <b>Centro Comunitario</b><br>⛪ <b>Capilla Ntra. Sra. del Roble</b><br>⛪ <b>Capilla San Judas Tadeo</b><br><br>📍 Todos en: <b>Misión Parroquial El Señor de la Misericordia, Buena Vista, El Carmen, NL, México</b><br><br>¿Quieres saber en qué salón está un grupo específico? 😊';
+  }
+
+  // ── CONTACTO ──
+  if(tiene('contacto','telefono','teléfono','whatsapp','numero','número','llamar','mensaje','facebook','messenger')) {
+    return '📞 <b>Contacto CateKids MPSM:</b><br><br>📱 WhatsApp: <b>8131251943</b><br>💬 Messenger: <a href="https://m.me/catekidsMPSM" target="_blank">m.me/catekidsMPSM</a><br><br>¡No dudes en escribir! El equipo de CateKids te responderá con gusto. 😊';
+  }
+
+  // ── INSCRIPCIONES ──
+  if(tiene('inscripcion','inscripción','inscribir','registrar','registro','apuntar','entrar','unirse')) {
+    return '📝 <b>Inscripciones a CateKids MPSM:</b><br><br>Para inscribir a tu hijo(a), comunícate directamente con el equipo:<br><br>📱 WhatsApp: <b>8131251943</b><br>💬 Messenger: <a href="https://m.me/catekidsMPSM" target="_blank">m.me/catekidsMPSM</a><br><br>La catequesis es para niños de <b>7 a 12 años</b>. ¡Todos son bienvenidos! 🙏';
+  }
+
+  // ── SACRAMENTOS ──
+  if(tiene('sacramento','sacramentos','cuantos sacramentos','7 sacramentos','siete sacramentos')) {
+    return '✝️ <b>Los 7 Sacramentos de la Iglesia Católica:</b><br><br>💧 <b>Bautismo</b> — nos hace hijos de Dios<br>🍞 <b>Eucaristía</b> — el Cuerpo y Sangre de Jesús<br>🕊️ <b>Confirmación</b> — el don del Espíritu Santo<br>🙏 <b>Reconciliación</b> — el perdón de Dios<br>🫒 <b>Unción de enfermos</b> — fortaleza en la enfermedad<br>💍 <b>Matrimonio</b> — amor consagrado ante Dios<br>👐 <b>Orden Sacerdotal</b> — servicio de los sacerdotes<br><br>Los sacramentos son signos visibles que Jesús nos dejó para recibir la gracia de Dios. 😊';
+  }
+
+  if(tiene('bautismo','bautizar','bautizado')) {
+    return '💧 <b>Bautismo</b><br><br>Es el primer sacramento. Nos hace hijos de Dios, nos limpia del pecado original y nos incorpora a la Iglesia Católica. Generalmente se celebra cuando somos bebés, pero también de adultos. El agua es el signo principal. ✨<br><br><em>"El que crea y sea bautizado, se salvará."</em> — Marcos 16:16';
+  }
+
+  if(tiene('eucaristia','eucaristía','comunion','cuerpo de cristo','misa')) {
+    return '🍞 <b>Eucaristía (Primera Comunión)</b><br><br>Es el corazón de la fe católica. En la Misa, el pan y el vino se convierten verdaderamente en el Cuerpo y Sangre de Jesús. La Primera Comunión es un momento muy especial en la vida de los niños. 🙏<br><br>En CateKids, los grupos de <b>💛 Comunión</b> preparan a los niños para este hermoso sacramento.<br><br><em>"Yo soy el pan de vida."</em> — Juan 6:35';
+  }
+
+  if(tiene('confirmacion','confirmación','espiritu santo','espíritu santo')) {
+    return '🕊️ <b>Confirmación</b><br><br>Es el sacramento donde recibimos plenamente el Espíritu Santo. Fortalece nuestra fe y nos convierte en testigos de Cristo. Se recibe una sola vez, normalmente después de la Primera Comunión. Los <b>❤️ grupos de Confirmación</b> de CateKids se preparan para este sacramento. 🙏<br><br><em>"Recibirán el poder del Espíritu Santo."</em> — Hechos 1:8';
+  }
+
+  if(tiene('reconciliacion','reconciliación','confesion','confesión','penitencia','perdon','perdón')) {
+    return '🙏 <b>Reconciliación (Confesión)</b><br><br>También llamado Penitencia. Es el sacramento del perdón. Nos acercamos al sacerdote, reconocemos nuestros pecados con arrepentimiento, y Dios nos perdona a través de él. ¡Qué grande misericordia! 💛<br><br>Para confesarse se necesita:<br>1. Examen de conciencia<br>2. Arrepentimiento sincero<br>3. Propósito de no pecar<br>4. Confesión al sacerdote<br>5. Cumplir la penitencia';
+  }
+
+  // ── MANDAMIENTOS ──
+  if(tiene('mandamiento','mandamientos','10 mandamientos','diez mandamientos')) {
+    return '📜 <b>Los 10 Mandamientos:</b><br><br>1️⃣ Amarás a Dios sobre todas las cosas<br>2️⃣ No tomarás su nombre en vano<br>3️⃣ Santificarás las fiestas<br>4️⃣ Honrarás a tu padre y tu madre<br>5️⃣ No matarás<br>6️⃣ No cometerás actos impuros<br>7️⃣ No robarás<br>8️⃣ No mentirás<br>9️⃣ No desearás lo ajeno (persona)<br>🔟 No codiciarás los bienes ajenos<br><br>Los primeros 3 hablan de amar a Dios. Los otros 7, de amar al prójimo. 😊';
+  }
+
+  // ── ORACIONES ──
+  if(tiene('padre nuestro','oracion del padre','orar','oracion','oración')) {
+    if(tiene('padre nuestro')) {
+      return '🙏 <b>Padre Nuestro:</b><br><br>Padre nuestro que estás en el cielo,<br>santificado sea tu nombre;<br>venga a nosotros tu reino;<br>hágase tu voluntad en la tierra como en el cielo.<br>Danos hoy nuestro pan de cada día;<br>perdona nuestras ofensas,<br>como también nosotros perdonamos a los que nos ofenden;<br>no nos dejes caer en tentación<br>y líbranos del mal. Amén. 🙏';
+    }
+    if(tiene('ave maria','ave maría','salve')) {
+      return '🌹 <b>Ave María:</b><br><br>Dios te salve María, llena eres de gracia,<br>el Señor es contigo.<br>Bendita tú eres entre todas las mujeres,<br>y bendito es el fruto de tu vientre, Jesús.<br>Santa María, Madre de Dios,<br>ruega por nosotros los pecadores,<br>ahora y en la hora de nuestra muerte. Amén. 🌹';
+    }
+    return '🙏 <b>Oraciones principales de la fe católica:</b><br><br>• <b>Padre Nuestro</b> — la oración que Jesús nos enseñó<br>• <b>Ave María</b> — saludo a la Virgen María<br>• <b>Credo</b> — profesión de fe<br>• <b>Gloria</b> — alabanza a la Trinidad<br>• <b>Acto de Contrición</b> — para pedir perdón<br>• <b>El Rosario</b> — meditación con María<br><br>¿Quieres que te diga alguna oración completa? 😊';
+  }
+
+  if(tiene('rosario','rosario','misterio','misterios')) {
+    return '📿 <b>El Santo Rosario</b><br><br>El Rosario se reza meditando los misterios de la vida de Jesús y María. Tiene 4 grupos de misterios con 5 décadas cada uno:<br><br>😊 <b>Gozosos</b> (lunes y sábado): Anunciación, Visitación, Nacimiento, Presentación, Hallazgo en el Templo<br><br>✨ <b>Luminosos</b> (jueves): Bautismo, Bodas de Caná, Anuncio del Reino, Transfiguración, Institución Eucaristía<br><br>😢 <b>Dolorosos</b> (martes y viernes): Agonía, Flagelación, Corona, Cruz a Cuestas, Crucifixión<br><br>👑 <b>Gloriosos</b> (miércoles y domingo): Resurrección, Ascensión, Pentecostés, Asunción, Coronación';
+  }
+
+  // ── JESÚS ──
+  if(tiene('jesus','jesucristo','cristo','hijo de dios','señor')) {
+    return '✝️ <b>Jesús:</b><br><br>Jesús es el Hijo de Dios, segunda persona de la Santísima Trinidad. Nació en <b>Belén</b>, creció en <b>Nazaret</b>. Fue bautizado por Juan en el Río Jordán. Llamó a <b>12 apóstoles</b>. Realizó muchos milagros: curó enfermos, multiplicó panes, resucitó muertos. Murió crucificado para salvarnos, <b>resucitó al tercer día</b> y ascendió al Cielo. Envió al Espíritu Santo en Pentecostés.<br><br><em>"Yo soy el camino, la verdad y la vida."</em> — Juan 14:6';
+  }
+
+  if(tiene('apostol','apostoles','apóstol','apóstoles','discipulo','discípulo')) {
+    return '✝️ <b>Los 12 Apóstoles de Jesús:</b><br><br>1. Pedro (Simón)<br>2. Andrés (hermano de Pedro)<br>3. Santiago (hijo de Zebedeo)<br>4. Juan (el amado)<br>5. Felipe<br>6. Bartolomé<br>7. Mateo (el publicano)<br>8. Tomás<br>9. Santiago (hijo de Alfeo)<br>10. Judas Tadeo<br>11. Simón el Zelote<br>12. Judas Iscariote<br><br>Tras la traición de Judas, fue reemplazado por <b>Matías</b>. 🙏';
+  }
+
+  // ── MARÍA ──
+  if(tiene('maria','virgen','guadalupe','nuestra señora','madre de dios','inmaculada')) {
+    return '🌹 <b>La Virgen María</b><br><br>María es la Madre de Dios (<em>Theotokos</em>), la mujer más santa de la historia. Dijo "sí" a Dios y por eso nació Jesús. Sus grandes dogmas:<br><br>• <b>Inmaculada Concepción</b> — nació sin pecado original<br>• <b>Virgen perpetua</b> — siempre virgen<br>• <b>Madre de Dios</b> — Theotokos<br>• <b>Asunción</b> — subió al cielo en cuerpo y alma<br><br>Sus advocaciones más amadas: Guadalupe 🌹, Del Carmen, Lourdes, Fátima, Del Roble.<br><br><em>"Hágase en mí según tu Palabra."</em> — Lucas 1:38';
+  }
+
+  // ── BIBLIA ──
+  if(tiene('biblia','sagrada escritura','testamento','evangelio','evangelios','libro','libros')) {
+    return '📖 <b>La Biblia Católica</b><br><br>La Biblia tiene <b>73 libros</b>:<br>• <b>Antiguo Testamento:</b> 46 libros (creación, patriarcas, profetas, salmos…)<br>• <b>Nuevo Testamento:</b> 27 libros (vida de Jesús, apóstoles, cartas…)<br><br>Los <b>4 Evangelios</b> cuentan la vida de Jesús:<br>📗 Mateo | 📘 Marcos | 📙 Lucas | 📕 Juan<br><br>Mateo, Marcos y Lucas se llaman <em>sinópticos</em> porque son muy parecidos. Juan es diferente y más profundo. 😊';
+  }
+
+  // ── TRINIDAD ──
+  if(tiene('trinidad','santisima trinidad','santísima trinidad','padre hijo','dios padre','dios hijo')) {
+    return '☁️ <b>La Santísima Trinidad</b><br><br>Es el misterio más grande de la fe: <b>un solo Dios en tres Personas</b>:<br><br>👑 <b>Dios Padre</b> — el Creador de todo<br>✝️ <b>Dios Hijo</b> — Jesucristo, que se hizo hombre por nosotros<br>🕊️ <b>Dios Espíritu Santo</b> — el Consolador y Guía<br><br>No son tres dioses, sino un solo Dios con tres Personas distintas. Es un misterio de amor. 🙏';
+  }
+
+  // ── SANTOS ──
+  if(tiene('santo','santa','santos','patron','patrón','canonizar','canonizado')) {
+    return '👼 <b>Los Santos</b><br><br>Los santos son personas que vivieron de manera ejemplar y están con Dios en el Cielo. La Iglesia los <em>canoniza</em> después de verificar milagros. Podemos pedirles que <b>intercedan</b> por nosotros ante Dios.<br><br>Cada grupo de CateKids lleva el nombre de un santo como inspiración. ¿Te gustaría saber sobre algún santo en especial? 😊<br><br>Por ejemplo: San Juan Bosco (patrón de la juventud), Santa Faustina (apóstol de la Misericordia), San Tarcisio (patrón de los niños que van a Misa). 🌟';
+  }
+
+  // ── PECADOS ──
+  if(tiene('pecado','pecados','pecar','pecado capital','pecados capitales','malo','maldad')) {
+    return '⚠️ <b>Los 7 Pecados Capitales</b><br><br>Se llaman "capitales" porque son raíz de otros pecados:<br><br>1. 😤 <b>Soberbia</b> — creerse mejor que todos<br>2. 💰 <b>Avaricia</b> — querer siempre más cosas<br>3. 😡 <b>Ira</b> — enojarse sin control<br>4. 😒 <b>Envidia</b> — querer lo que tiene el otro<br>5. 😴 <b>Pereza</b> — no querer esforzarse<br>6. 🍔 <b>Gula</b> — exceso en comer o beber<br>7. ❌ <b>Lujuria</b> — deseos impuros<br><br>La virtud contraria a cada uno nos ayuda a vencerlos. 💪';
+  }
+
+  // ── VIRTUDES ──
+  if(tiene('virtud','virtudes','teologal','teologales','cardinal','cardinales')) {
+    return '⭐ <b>Las Virtudes Católicas</b><br><br><b>Teologales</b> (nos unen a Dios):<br>💛 Fe — creer en Dios<br>💚 Esperanza — confiar en Dios<br>❤️ Caridad — amar a Dios y al prójimo<br><br><b>Cardinales</b> (guían la vida moral):<br>🧠 Prudencia — pensar antes de actuar<br>⚖️ Justicia — dar a cada uno lo que merece<br>💪 Fortaleza — ser valiente para el bien<br>🌿 Templanza — moderación en todo<br><br><b>Dones del Espíritu Santo:</b><br>Sabiduría, Entendimiento, Consejo, Fortaleza, Ciencia, Piedad, Temor de Dios';
+  }
+
+  // ── OBRAS DE MISERICORDIA ──
+  if(tiene('misericordia','obras de misericordia','obra','ayudar al projimo')) {
+    return '💛 <b>Obras de Misericordia</b><br><br><b>Corporales</b> (del cuerpo):<br>🍽️ Dar de comer al hambriento<br>💧 Dar de beber al sediento<br>👕 Vestir al desnudo<br>🏠 Dar posada al peregrino<br>🏥 Visitar al enfermo<br>🔓 Visitar al preso<br>⚰️ Enterrar a los muertos<br><br><b>Espirituales</b> (del alma):<br>📚 Enseñar al que no sabe<br>💡 Dar buen consejo<br>🙏 Perdonar las injurias<br>😢 Consolar al triste<br>✉️ Rogar a Dios por vivos y difuntos';
+  }
+
+  // ── INFORMACIÓN GENERAL CATEKIDS ──
+  if(tiene('catekids','catequesis','parroquia','mpsm','señor de la misericordia','buena vista','el carmen','cuantos niños','cuantos grupos')) {
+    return '🏫 <b>CateKids MPSM</b><br><br>CateKids es la catequesis infantil de la <b>Misión Parroquial El Señor de la Misericordia</b>, ubicada en Buena Vista, El Carmen, Nuevo León.<br><br>📊 Más de <b>600 niños</b> inscritos<br>👥 <b>47 grupos</b> activos<br>👩‍🏫 Decenas de <b>catequistas voluntarios</b><br>🎓 Niveles: Iniciación, Comunión, Confirmación, Perseverante<br><br>📱 WhatsApp: <b>8131251943</b><br>💬 <a href="https://m.me/catekidsMPSM" target="_blank">m.me/catekidsMPSM</a>';
+  }
+
+  // ── RESPUESTA POR DEFECTO ──
+  return `¡Hola! 😊 Puedo ayudarte con:<br><br>⏰ <b>Horarios</b> — "¿Qué hora es el grupo San Pedro?"<br>👩‍🏫 <b>Catequistas</b> — "¿Quién da el grupo Santa Lucía?"<br>📍 <b>Salones</b> — "¿Dónde es el grupo San Mateo?"<br>📢 <b>Avisos</b> — "¿Qué avisos hay?"<br>✝️ <b>Sacramentos</b> — "¿Qué es la Confirmación?"<br>📜 <b>Mandamientos</b>, 🙏 <b>Oraciones</b>, 📖 <b>Biblia</b>, 🌹 <b>María</b>, 👼 <b>Santos</b><br><br>¡Escribe tu pregunta y te respondo! 🙏`;
 }
 function quickIA(q) { document.getElementById('ia-input').value=q; sendIA(); }
 function appendIAMsg(text,who) {
@@ -2733,80 +2988,6 @@ function showAdminSuccess() {
   setTimeout(() => { el.style.display = 'none'; }, 3000);
 }
 
-// ============================================================
-// CATEQUISTA IA — Conexión con Anthropic Claude
-// (única API que permite llamadas directas desde el navegador)
-// ============================================================
-const CLAUDE_API_KEY = 'NECESITO_TU_API_KEY_DE_ANTHROPIC';
-
-async function sendIA() {
-  const input = document.getElementById('ia-input');
-  const msg = input.value.trim();
-  if(!msg) return;
-  input.value = '';
-  appendIAMsg(msg, 'user');
-  showIATyping();
-  iaHist.push({role:'user', content: msg});
-
-  // Construir system prompt con todo el contenido vivo de la página
-  let systemPrompt = IA_SYSTEM_PROMPT;
-
-  // Inyectar TODOS los textos relevantes de la página en tiempo real
-  try {
-    // Avisos publicados
-    const avisoEls = document.querySelectorAll('.aviso-card, .aviso-item, [class*="aviso"]');
-    const avisos = [];
-    avisoEls.forEach(el => {
-      const txt = el.innerText.trim();
-      if(txt.length > 10) avisos.push(txt.replace(/\s+/g,' '));
-    });
-    if(avisos.length) {
-      systemPrompt += '\n\n=== AVISOS ACTUALES PUBLICADOS EN LA PÁGINA ===\n' + avisos.map((a,i)=>`Aviso ${i+1}: ${a}`).join('\n');
-    }
-  } catch(e){}
-
-  // Instrucciones adicionales del admin
-  try {
-    const extra = localStorage.getItem('ck_ia_extra');
-    if(extra && extra.trim()) {
-      systemPrompt += '\n\n=== INSTRUCCIONES ADICIONALES ===\n' + extra.trim();
-    }
-  } catch(e){}
-
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: iaHist.slice(-16)
-      })
-    });
-
-    const data = await response.json();
-    removeIATyping();
-
-    if(data.content && data.content[0] && data.content[0].text) {
-      const reply = data.content[0].text;
-      iaHist.push({role:'assistant', content: reply});
-      appendIAMsg(reply.replace(/\n/g,'<br>'), 'bot');
-    } else if(data.error) {
-      appendIAMsg('⚠️ ' + (data.error.message || 'Error al conectar con la IA'), 'bot');
-    } else {
-      appendIAMsg(buscarRespuestaIA(msg), 'bot');
-    }
-  } catch(e) {
-    removeIATyping();
-    appendIAMsg('⚠️ No se pudo conectar con la IA. Verifica tu conexión.', 'bot');
-  }
-}
 
 function saveNuevoAviso() {
   const titulo = document.getElementById('admin-av-titulo').value.trim();
