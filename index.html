@@ -1867,8 +1867,58 @@ OBRAS DE MISERICORDIA ESPIRITUALES: Enseñar al que no sabe, dar buen consejo, c
 - Si alguien tiene una duda espiritual, un problema o algo que lo preocupa, escúchalo con empatía y ofrece palabras de aliento desde la fe.`;
 
 // ============================================================
-// CATEQUISTA IA — SISTEMA LOCAL COMPLETO (sin API)
+// CATEQUISTA IA — SISTEMA LOCAL + GOOGLE SHEET EN VIVO
 // ============================================================
+const SHEET_ID = '1WvbSmtioU_l6nRUWBPDieeQ3aCHK3IEeiRuUw1E3Wzs';
+let sheetData = null;
+let sheetCargado = false;
+
+async function cargarSheet() {
+  if(sheetCargado) return sheetData;
+  sheetCargado = true;
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+    const res = await fetch(url);
+    const txt = await res.text();
+    const json = JSON.parse(txt.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    const rows = json.table.rows;
+    sheetData = rows.map(r => ({
+      tema:      (r.c[0] && r.c[0].v) ? String(r.c[0].v).trim() : '',
+      pregunta:  (r.c[1] && r.c[1].v) ? String(r.c[1].v).trim() : '',
+      respuesta: (r.c[2] && r.c[2].v) ? String(r.c[2].v).trim() : ''
+    })).filter(r => r.pregunta && r.respuesta);
+    return sheetData;
+  } catch(e) {
+    sheetData = [];
+    return [];
+  }
+}
+
+function buscarEnSheet(msg, datos) {
+  if(!datos || !datos.length) return null;
+  const q = normalizar(msg);
+  for(const row of datos) {
+    if(normalizar(row.pregunta) === q) return row.respuesta;
+  }
+  for(const row of datos) {
+    const pNorm = normalizar(row.pregunta);
+    if(q.includes(pNorm) || pNorm.includes(q)) return row.respuesta;
+  }
+  const palabrasQ = q.split(/\s+/).filter(p => p.length > 3);
+  let mejorPuntaje = 0, mejorRespuesta = null;
+  for(const row of datos) {
+    const pNorm = normalizar(row.pregunta);
+    const palabrasP = pNorm.split(/\s+/).filter(p => p.length > 3);
+    if(!palabrasP.length) continue;
+    const coinciden = palabrasP.filter(p => q.includes(p) || palabrasQ.some(w => w.includes(p) || p.includes(w)));
+    const puntaje = coinciden.length / palabrasP.length;
+    if(puntaje > mejorPuntaje && puntaje >= 0.5) {
+      mejorPuntaje = puntaje;
+      mejorRespuesta = row.respuesta;
+    }
+  }
+  return mejorRespuesta;
+}
 
 async function sendIA() {
   const input = document.getElementById('ia-input');
@@ -1877,12 +1927,22 @@ async function sendIA() {
   input.value = '';
   appendIAMsg(msg, 'user');
   showIATyping();
-  // Simular que "piensa" un momento para sentirse natural
-  setTimeout(() => {
-    removeIATyping();
-    const respuesta = responderCatequista(msg);
-    appendIAMsg(respuesta, 'bot');
-  }, 700 + Math.random() * 600);
+
+  const [datos] = await Promise.all([
+    cargarSheet(),
+    new Promise(r => setTimeout(r, 600 + Math.random() * 500))
+  ]);
+
+  removeIATyping();
+
+  const respSheet = buscarEnSheet(msg, datos);
+  if(respSheet) {
+    appendIAMsg(respSheet.replace(/\n/g,'<br>'), 'bot');
+    return;
+  }
+
+  const respLocal = responderCatequista(msg);
+  appendIAMsg(respLocal, 'bot');
 }
 
 function normalizar(t) {
@@ -2127,8 +2187,152 @@ function responderCatequista(msg) {
     return '🏫 <b>CateKids MPSM</b><br><br>CateKids es la catequesis infantil de la <b>Misión Parroquial El Señor de la Misericordia</b>, ubicada en Buena Vista, El Carmen, Nuevo León.<br><br>📊 Más de <b>600 niños</b> inscritos<br>👥 <b>47 grupos</b> activos<br>👩‍🏫 Decenas de <b>catequistas voluntarios</b><br>🎓 Niveles: Iniciación, Comunión, Confirmación, Perseverante<br><br>📱 WhatsApp: <b>8131251943</b><br>💬 <a href="https://m.me/catekidsMPSM" target="_blank">m.me/catekidsMPSM</a>';
   }
 
+  // ── CIELO, INFIERNO, PURGATORIO ──
+  if(tiene('cielo','paraiso','paraíso','vida eterna','despues de morir','después de morir','resurreccion','resurrección','infierno','purgatorio')) {
+    if(tiene('cielo','paraiso','paraíso','vida eterna')) return '☁️ <b>El Cielo</b><br><br>El Cielo es la vida plena con Dios para siempre. Es la felicidad total: ver a Dios cara a cara (visión beatífica), reunirnos con quienes amamos y no sufrir más. Jesús dijo: <em>"En la casa de mi Padre hay muchas moradas."</em> (Juan 14:2)<br><br>Dios quiere que todos lleguemos al Cielo. Por eso nos dio los sacramentos, los mandamientos y a Jesús como camino. 🙏';
+    if(tiene('infierno')) return '🔥 <b>El Infierno</b><br><br>El infierno es la separación eterna de Dios, elegida libremente por quien rechaza su amor hasta el final de su vida. No es un castigo que Dios impone, sino la consecuencia de decirle "no" a Dios definitivamente.<br><br>La Iglesia nos enseña que existe, pero nos invita siempre a la esperanza y a la conversión. Dios siempre perdona mientras vivimos. 🙏';
+    if(tiene('purgatorio')) return '🕯️ <b>El Purgatorio</b><br><br>El Purgatorio es un proceso de purificación para quienes mueren en gracia de Dios pero aún con imperfecciones. Es como una última limpieza antes de entrar al Cielo.<br><br>Podemos ayudar a las almas del purgatorio con:<br>🙏 Oraciones por ellos<br>🕯️ Misas ofrecidas a su intención<br>💛 Actos de caridad en su nombre<br><br>Por eso rezamos por los difuntos, especialmente en noviembre. ✝️';
+    return '☁️ <b>Los Novísimos</b> (últimas realidades):<br><br>La fe católica nos habla de cuatro:<br>💀 <b>Muerte</b> — el fin de la vida terrenal<br>⚖️ <b>Juicio</b> — particular (al morir) y universal (al final)<br>🔥 <b>Infierno</b> — separación eterna de Dios<br>☁️ <b>Cielo</b> — vida plena con Dios para siempre<br>🕯️ <b>Purgatorio</b> — purificación antes del Cielo<br><br>¡Pregúntame sobre cualquiera de ellos! 😊';
+  }
+
+  // ── CREACIÓN / ADÁN Y EVA ──
+  if(tiene('creacion','creación','adán','adan','eva','genesis','génesis','pecado original','jardin','jardín','eden','edén','serpiente','manzana')) {
+    if(tiene('pecado original','adán','adan','eva','manzana','serpiente','eden','edén')) return '🍎 <b>El Pecado Original</b><br><br>Dios creó a Adán y Eva en el Jardín del Edén, perfectos y felices. Les dio todo, con una sola condición: no comer del árbol del conocimiento del bien y del mal.<br><br>La serpiente (el diablo) tentó a Eva, ella comió y le dio a Adán. Con ese acto desobedecieron a Dios. Esto se llama <b>Pecado Original</b>: el primer pecado que afecta a toda la humanidad.<br><br>Por eso todos nacemos con esa tendencia al mal... ¡pero el Bautismo nos limpia de él! 💧 Jesús vino a reparar ese daño. ✝️';
+    return '🌍 <b>La Creación</b><br><br>Según el Génesis, Dios creó todo en 6 días:<br>1️⃣ Luz<br>2️⃣ Cielo y aguas<br>3️⃣ Tierra y plantas<br>4️⃣ Sol, luna y estrellas<br>5️⃣ Peces y aves<br>6️⃣ Animales y el ser humano (Adán y Eva)<br>7️⃣ Descansó (el Sábado es sagrado)<br><br>Lo más especial: el ser humano fue creado <em>"a imagen y semejanza de Dios"</em> (Génesis 1:27). Eso nos hace únicos y valiosos. 💛';
+  }
+
+  // ── MOISÉS Y EL ÉXODO ──
+  if(tiene('moises','moisés','exodo','éxodo','tablas','mar rojo','faraon','faraón','plaga','plagas','mandamiento','sinai','sinaí','tierra prometida')) {
+    if(tiene('tablas','sinai','sinaí','mandamiento')) return '⚡ <b>Las Tablas de la Ley</b><br><br>Dios llamó a Moisés al Monte Sinaí y le entregó los <b>10 Mandamientos</b> escritos en dos tablas de piedra. Estas tablas eran el pacto entre Dios y su pueblo.<br><br>Moisés tardó 40 días en el monte. Cuando bajó, encontró al pueblo adorando un becerro de oro y, enojado, rompió las tablas. ¡Tuvo que subir de nuevo!<br><br>Las tablas se guardaron en el <b>Arca de la Alianza</b>. 📜';
+    if(tiene('plaga','plagas','faraon','faraón')) return '🐸 <b>Las 10 Plagas de Egipto</b><br><br>Como el Faraón no quería liberar al pueblo de Israel, Dios envió 10 plagas:<br>1. Agua en sangre 🩸<br>2. Ranas 🐸<br>3. Piojos<br>4. Moscas<br>5. Muerte del ganado<br>6. Úlceras<br>7. Granizo ⛈️<br>8. Langostas 🦗<br>9. Oscuridad 🌑<br>10. Muerte de los primogénitos<br><br>Después de la última plaga, el Faraón los dejó ir. Nació la fiesta de la <b>Pascua</b>. 🙏';
+    return '⚡ <b>Moisés</b><br><br>Moisés es uno de los más grandes profetas del Antiguo Testamento. Dios lo llamó desde una <b>zarza ardiente</b> para sacar a su pueblo de la esclavitud en Egipto.<br><br>Sus grandes hazañas:<br>🌊 Dividió el Mar Rojo<br>⚡ Recibió los 10 Mandamientos en el Sinaí<br>💧 Sacó agua de una roca<br>🍞 El maná en el desierto<br><br>Guió al pueblo 40 años por el desierto hacia la Tierra Prometida, aunque él no pudo entrar. Murió viendo la tierra desde el Monte Nebo. 🙏';
+  }
+
+  // ── NOÉ ──
+  if(tiene('noe','noé','arca','diluvio','arcoiris','arcoíris','paloma')) {
+    return '🌈 <b>Noé y el Diluvio</b><br><br>Noé era un hombre justo cuando el mundo estaba lleno de maldad. Dios le mandó construir un <b>arca</b> enorme y meter a su familia y una pareja de cada animal.<br><br>Llovió 40 días y 40 noches. Cuando paró, Noé soltó una paloma que regresó con una rama de olivo 🕊️, señal de que había tierra seca.<br><br>Dios hizo una <b>alianza</b> con Noé: nunca más destruiría la tierra con agua. El <b>arcoíris</b> 🌈 es la señal de esa promesa eterna.<br><br><em>"He puesto mi arco en las nubes."</em> — Génesis 9:13';
+  }
+
+  // ── ABRAHAM ──
+  if(tiene('abraham','sara','isaac','alianza','pueblo elegido','fe de abraham')) {
+    return '⭐ <b>Abraham</b><br><br>Abraham es el "Padre de la fe". Dios lo llamó a dejar su tierra y le hizo una gran promesa: ser padre de una nación numerosa como las estrellas.<br><br>Abraham confió en Dios aunque tenía 100 años y su esposa Sara era estéril. ¡Y nació <b>Isaac</b>! La mayor prueba fue cuando Dios le pidió ofrecer a Isaac, pero en el último momento Dios lo detuvo y proveyó un carnero.<br><br>Abraham es el padre espiritual de judíos, cristianos y musulmanes. Su fe es modelo para todos. 🙏';
+  }
+
+  // ── DAVID Y SALOMÓN ──
+  if(tiene('david','goliat','salomon','salomón','rey','templo','salmos','psalmos')) {
+    if(tiene('goliat')) return '👑 <b>David y Goliat</b><br><br>El filisteo Goliat era un gigante de casi 3 metros que desafiaba al ejército de Israel. Todos tenían miedo, menos el joven David, pastor de ovejas.<br><br>David dijo: "No necesito armadura, tengo a Dios." Con una <b>honda y una piedra</b>, lanzó y acertó en la frente de Goliat, venciéndolo. ¡El ejército filisteo huyó!<br><br>David nos enseña que con fe en Dios podemos vencer nuestros propios "gigantes": el miedo, las dificultades, los momentos difíciles. 💪';
+    if(tiene('salomon','salomón','templo')) return '🏛️ <b>Salomón y el Templo</b><br><br>Salomón fue el hijo de David y el rey más sabio de Israel. Dios le ofreció lo que quisiera y él pidió... <b>sabiduría</b> para gobernar bien. Eso agradó tanto a Dios que también le dio riqueza y gloria.<br><br>Su obra más grande fue construir el <b>Templo de Jerusalén</b>, la casa de Dios en la tierra, donde se guardaría el Arca de la Alianza.<br><br>Sus proverbios y el libro del Eclesiastés son parte de la Biblia. 📖';
+    return '👑 <b>David</b><br><br>David fue pastor, músico, guerrero y rey. Venció a Goliat de joven, escribió gran parte de los <b>Salmos</b> y fue el rey más amado de Israel. Dios lo llamó "un hombre según mi corazón".<br><br>Aunque cometió pecados graves, siempre se arrepentía sinceramente. Nos enseña que Dios no busca personas perfectas, sino corazones arrepentidos y fieles. 🙏<br><br>De su linaje nació Jesucristo. ✝️';
+  }
+
+  // ── PROFETAS ──
+  if(tiene('profeta','profetas','isaias','isaías','jeremias','jeremías','elias','elías','daniel','ezequiel')) {
+    if(tiene('elias','elías')) return '🔥 <b>Elías</b><br><br>Elías fue uno de los profetas más poderosos. Desafió solo a 450 profetas falsos en el Monte Carmelo y Dios respondió con fuego del cielo. 🔥<br><br>Sufrió depresión y quiso morir, pero un ángel lo alimentó y Dios le habló en una <b>brisa suave</b> (no en el fuego ni el terremoto). Nos enseña que Dios está en la quietud.<br><br>Fue llevado al cielo en un <b>carro de fuego</b> sin morir. Aparece con Moisés en la Transfiguración de Jesús. ✨';
+    if(tiene('daniel')) return '🦁 <b>Daniel en el foso de los leones</b><br><br>Daniel era un joven judío en Babilonia que se negó a dejar de orar a Dios. Lo castigaron echándolo al foso de los leones, pero Dios cerró la boca de las fieras y Daniel salió ileso.<br><br>También interpretaba sueños y visiones. Su historia nos enseña que la fidelidad a Dios tiene recompensa, aunque cueste mucho. 🦁🙏';
+    return '📣 <b>Los Profetas</b><br><br>Los profetas eran personas elegidas por Dios para transmitir su mensaje al pueblo. No solo anunciaban el futuro, sino que llamaban a convertirse.<br><br>Profetas mayores: Isaías, Jeremías, Ezequiel, Daniel<br>Profetas menores: Oseas, Amós, Jonás, Miqueas, entre otros<br><br>Muchos profetas anunciaron la venida del Mesías (Jesús). Isaías escribió: <em>"Una virgen concebirá y dará a luz un hijo."</em> (Is 7:14) ✝️';
+  }
+
+  // ── NAVIDAD / NACIMIENTO DE JESÚS ──
+  if(tiene('navidad','nacimiento','belen','belén','pesebre','pastores','reyes magos','magos','jose y maria','angel gabriel','gabriel','anunciacion','anunciación')) {
+    if(tiene('reyes magos','magos','melchor','gaspar','baltasar')) return '⭐ <b>Los Reyes Magos</b><br><br>Los Magos del Oriente vieron una estrella extraordinaria y siguieron su luz hacia Belén. Llevaron tres regalos con significado:<br><br>🥇 <b>Oro</b> — para un Rey<br>🧡 <b>Incienso</b> — para un Dios<br>🖤 <b>Mirra</b> — para quien iba a morir (era un ungüento funerario)<br><br>La Biblia no dice que fueran exactamente 3 ni que se llamaran Melchor, Gaspar y Baltasar; eso lo añadió la tradición.<br><br>Los Reyes representan a todos los pueblos del mundo viniendo a adorar a Jesús. 👑';
+    if(tiene('angel gabriel','gabriel','anunciacion','anunciación')) return '🕊️ <b>La Anunciación</b><br><br>El ángel Gabriel fue enviado por Dios a Nazaret, a una joven llamada María. Le dijo: <em>"Alégrate, llena de gracia, el Señor está contigo."</em><br><br>Le anunció que concebiría al Hijo de Dios por obra del Espíritu Santo. María preguntó: "¿Cómo será esto?" Y el ángel explicó el misterio.<br><br>María respondió con total confianza: <em>"Hágase en mí según tu Palabra."</em> 🌹<br><br>Celebramos la Anunciación el <b>25 de marzo</b>, 9 meses antes de Navidad. ✨';
+    return '🌟 <b>Nacimiento de Jesús</b><br><br>Jesús nació en <b>Belén</b>, en un pesebre, porque no había lugar en la posada. Sus padres eran <b>María y José</b>.<br><br>La noche de su nacimiento:<br>🌟 Una estrella brilló en el cielo<br>👼 Los ángeles anunciaron la buena noticia a los pastores<br>🐑 Los pastores fueron los primeros en adorarlo<br>⭐ Más tarde llegaron los Reyes Magos del Oriente<br><br>Celebramos esto el <b>25 de diciembre</b> como <b>Navidad</b>. El nombre viene de "natividad" = nacimiento. 🎄';
+  }
+
+  // ── SEMANA SANTA / PASCUA ──
+  if(tiene('semana santa','pascua','viernes santo','jueves santo','domingo de ramos','resurreccion','resurrección','via crucis','viacrucis','cruz','crucifixion','crucifixión','getsemani','getsemaní','ultima cena','última cena','cenáculo')) {
+    if(tiene('ultima cena','última cena','cenáculo','jueves santo')) return '🍞 <b>La Última Cena</b><br><br>El Jueves Santo, Jesús reunió a sus 12 apóstoles para cenar por última vez. En esa cena:<br><br>🍞 Tomó el pan, lo bendijo y dijo: <em>"Esto es mi Cuerpo"</em><br>🍷 Tomó el vino y dijo: <em>"Esta es mi Sangre"</em><br>🦶 Lavó los pies a sus discípulos como ejemplo de servicio<br><br>Instituyó así la <b>Eucaristía</b> y el <b>sacerdocio</b>. Luego fueron al Huerto de Getsemaní donde fue arrestado. Por eso el Jueves Santo es tan importante. 🙏';
+    if(tiene('via crucis','viacrucis','estacion','estaciones')) return '✝️ <b>El Vía Crucis</b><br><br>El Vía Crucis recorre los 14 momentos del camino de Jesús hacia la Cruz:<br><br>1. Jesús es condenado<br>2. Carga la Cruz<br>3. Cae por 1ª vez<br>4. Encuentra a su Madre<br>5. El Cirineo le ayuda<br>6. La Verónica le limpia el rostro<br>7. Cae por 2ª vez<br>8. Consuela a las mujeres<br>9. Cae por 3ª vez<br>10. Lo despojan<br>11. Es clavado en la Cruz<br>12. Muere en la Cruz<br>13. Lo bajan de la Cruz<br>14. Es puesto en el sepulcro<br><br>Se reza especialmente los Viernes de Cuaresma. 🙏';
+    if(tiene('resurreccion','resurrección','domingo de pascua','pascua')) return '🎉 <b>La Resurrección</b><br><br>El tercer día después de su muerte, Jesús <b>resucitó</b>. El sepulcro estaba vacío. Fue el mayor milagro de la historia.<br><br>Jesús se apareció primero a <b>María Magdalena</b>, luego a los apóstoles, y a más de 500 personas. Pasó 40 días con ellos antes de ascender al Cielo.<br><br>La Resurrección es el centro de la fe cristiana. San Pablo dijo: <em>"Si Cristo no resucitó, vana es nuestra fe."</em> (1 Cor 15:14)<br><br>¡Por eso celebramos la <b>Pascua</b> con tanta alegría! 🎊✝️';
+    return '✝️ <b>Semana Santa</b><br><br>Es la semana más importante del año cristiano. Recordamos la Pasión, Muerte y Resurrección de Jesús:<br><br>🌿 <b>Domingo de Ramos</b> — entrada triunfal a Jerusalén<br>🍞 <b>Jueves Santo</b> — La Última Cena, institución de la Eucaristía<br>✝️ <b>Viernes Santo</b> — Pasión y muerte de Jesús<br>🕯️ <b>Sábado de Gloria</b> — Vigilia Pascual<br>🎉 <b>Domingo de Pascua</b> — ¡Jesús Resucitó!<br><br>La Semana Santa no es solo tristeza; termina en la mayor alegría: la vida vence a la muerte. 🙏';
+  }
+
+  // ── PENTECOSTÉS ──
+  if(tiene('pentecostes','pentecostés','espiritu santo','lenguas de fuego','apostoles en pentecostes')) {
+    return '🔥 <b>Pentecostés</b><br><br>50 días después de la Resurrección, los apóstoles estaban reunidos con María cuando de repente vino un <b>viento fuerte</b> y aparecieron <b>lenguas de fuego</b> sobre cada uno. Recibieron al Espíritu Santo.<br><br>Ese día Pedro salió y predicó con tal valentía que se bautizaron 3,000 personas. El hombre que antes negaba conocer a Jesús ahora lo proclamaba sin miedo.<br><br>Pentecostés se considera el <b>nacimiento de la Iglesia</b>. 🕊️🔥<br><br>Los dones que recibimos en la Confirmación vienen de este mismo Espíritu Santo.';
+  }
+
+  // ── IGLESIA / PAPA / HISTORIA ──
+  if(tiene('iglesia','papa','obispo','sacerdote','diacono','diácono','vaticano','rome','roma','pedro primer papa','cura','padre','pastor')) {
+    if(tiene('papa','vaticano')) return '👑 <b>El Papa</b><br><br>El Papa es el sucesor de San Pedro y cabeza visible de la Iglesia Católica en la tierra. Es el Obispo de Roma.<br><br>El Papa actual es <b>Francisco</b> (Jorge Mario Bergoglio), el primero en llamarse Francisco y el primero latinoamericano.<br><br>El Papa enseña con autoridad especial en materia de fe y moral. Cuando habla <em>ex cathedra</em> (desde la cátedra) sobre fe, la Iglesia cree que está asistido por el Espíritu Santo (infalibilidad papal). 🕊️';
+    if(tiene('sacerdote','cura','padre','ordenacion','orden sacerdotal')) return '👐 <b>El Sacerdocio</b><br><br>El Orden Sacerdotal es uno de los 7 sacramentos. Por él, los hombres son consagrados para servir a Dios y su pueblo.<br><br>Hay tres grados:<br>👐 <b>Diácono</b> — asiste y sirve<br>✝️ <b>Sacerdote (Presbítero)</b> — celebra la Misa, confiesa, unge<br>👑 <b>Obispo</b> — plenitud del sacerdocio, sucesor de los Apóstoles<br><br>El sacerdote actúa <em>in persona Christi</em> (en la persona de Cristo). Por eso cuando el sacerdote absuelve en la confesión, es Cristo quien perdona. 🙏';
+    return '⛪ <b>La Iglesia Católica</b><br><br>Fundada por Jesús sobre <b>San Pedro</b>: <em>"Tú eres Pedro y sobre esta roca edificaré mi Iglesia."</em> (Mateo 16:18)<br><br>Las 4 marcas de la Iglesia:<br>✝️ <b>Una</b> — un solo Cuerpo de Cristo<br>🕊️ <b>Santa</b> — santificada por el Espíritu Santo<br>🌍 <b>Católica</b> — universal, para todos los pueblos<br>📜 <b>Apostólica</b> — fundada sobre los Apóstoles<br><br>La Iglesia tiene más de 2,000 años y está presente en todo el mundo con más de 1,300 millones de católicos. 🌎';
+  }
+
+  // ── ORACIÓN / CÓMO REZAR ──
+  if(tiene('como rezar','cómo rezar','aprender a rezar','me cuesta rezar','no sé rezar','no se rezar','tips para orar','formas de orar')) {
+    return '🙏 <b>¿Cómo rezar?</b><br><br>Rezar es simplemente <b>hablar con Dios</b>. No necesitas palabras perfectas ni poses especiales. Dios escucha desde el corazón. 💛<br><br><b>Tips para orar bien:</b><br>1. Busca un lugar tranquilo sin distracciones<br>2. Empieza haciendo el Señal de la Cruz ✝️<br>3. Habla con Dios como hablarías con un amigo<br>4. Cuéntale lo que sientes, lo que necesitas, lo que agradeces<br>5. Escucha en silencio<br>6. Termina con una oración conocida o el Padre Nuestro<br><br>Puedes rezar en cualquier lugar y momento. ¡A Dios le encanta escucharte! 😊';
+  }
+
+  // ── SEÑAL DE LA CRUZ ──
+  if(tiene('señal de la cruz','signo de la cruz','persignar','persignarse','como me persigno')) {
+    return '✝️ <b>La Señal de la Cruz</b><br><br>Es la oración más corta y poderosa del cristiano. Con ella proclamamos la fe en la Trinidad.<br><br>Se hace tocando:<br>1. La frente — <em>"En el nombre del Padre"</em><br>2. El pecho — <em>"y del Hijo"</em><br>3. Hombro izquierdo — <em>"y del Espíritu"</em><br>4. Hombro derecho — <em>"Santo"</em><br>5. Juntar las manos — <em>"Amén"</em><br><br>Hacemos la Señal de la Cruz al empezar y terminar cualquier oración, al entrar a una iglesia, antes de comer y en momentos de peligro. 🙏';
+  }
+
+  // ── CREDO ──
+  if(tiene('credo','creo en dios','profesion de fe','profesión de fe')) {
+    return '📜 <b>El Credo Apostólico</b><br><br>Creo en Dios, Padre todopoderoso,<br>Creador del cielo y de la tierra.<br>Creo en Jesucristo, su único Hijo, nuestro Señor,<br>que fue concebido por obra y gracia del Espíritu Santo,<br>nació de Santa María Virgen,<br>padeció bajo el poder de Poncio Pilato,<br>fue crucificado, muerto y sepultado,<br>descendió a los infiernos,<br>al tercer día resucitó de entre los muertos,<br>subió a los cielos<br>y está sentado a la derecha de Dios, Padre todopoderoso.<br>Desde allí ha de venir a juzgar a vivos y muertos.<br>Creo en el Espíritu Santo,<br>la santa Iglesia católica,<br>la comunión de los santos,<br>el perdón de los pecados,<br>la resurrección de la carne<br>y la vida eterna. Amén. 🙏';
+  }
+
+  // ── ACTO DE CONTRICIÓN ──
+  if(tiene('acto de contricion','acto de contrición','lo siento dios mio','perdoname dios','perdoname señor')) {
+    return '🙏 <b>Acto de Contrición</b><br><br>Señor mío Jesucristo,<br>Dios y hombre verdadero,<br>me pesa de todo corazón haberte ofendido.<br>Propongo firmemente, con tu gracia,<br>confesarme, cumplir la penitencia<br>y apartarme de las ocasiones de pecar.<br>Confío en que me perdonarás<br>por tu infinita misericordia.<br>Amén. 🙏<br><br>Esta oración se reza antes de confesarse o cuando queremos pedirle perdón a Dios de corazón. 💛';
+  }
+
+  // ── ÁNGELES ──
+  if(tiene('angel','ángel','angeles','ángeles','arcangel','arcángel','miguel','gabriel','rafael','angel de la guarda','angelito')) {
+    if(tiene('miguel','san miguel')) return '⚔️ <b>San Miguel Arcángel</b><br><br>Miguel es el príncipe de los ángeles y jefe del ejército celestial. Su nombre significa <em>"¿Quién como Dios?"</em><br><br>En el libro del Apocalipsis, Miguel derrota al dragón (el diablo). 🔥<br><br>Es patrón de los soldados, policías y todos los que defienden el bien.<br><br><b>Oración a San Miguel:</b><br><em>"San Miguel Arcángel, defiéndenos en la batalla, sé nuestro amparo contra la perversidad y asechanzas del demonio..."</em> ⚔️';
+    if(tiene('rafael','san rafael')) return '🏥 <b>San Rafael Arcángel</b><br><br>Rafael significa <em>"Dios ha sanado"</em>. Aparece en el libro de Tobías acompañando al joven Tobías en su viaje y sanando a su padre ciego.<br><br>Es el patrón de los enfermos, médicos, viajeros y farmacéuticos. Se le pide intercesión especialmente para las enfermedades. 🙏';
+    if(tiene('angel de la guarda','angelito','guardian')) return '👼 <b>El Ángel de la Guarda</b><br><br>La Iglesia enseña que cada persona tiene un ángel de la guarda asignado por Dios para protegerla y guiarla. 😊<br><br><b>Oración al Ángel de la Guarda:</b><br><em>Ángel de mi guarda, dulce compañía,<br>no me desampares ni de noche ni de día;<br>no me dejes solo que me perdería.<br>Amén.</em> 🙏<br><br>Jesús dijo: <em>"Sus ángeles en el cielo ven siempre el rostro de mi Padre."</em> Mateo 18:10';
+    return '👼 <b>Los Ángeles</b><br><br>Los ángeles son seres espirituales creados por Dios antes que el universo. Son sus mensajeros y servidores.<br><br>La Biblia menciona tres arcángeles por nombre:<br>⚔️ <b>Miguel</b> — jefe del ejército celestial<br>🕊️ <b>Gabriel</b> — mensajero (anunció a María)<br>🏥 <b>Rafael</b> — sanador y guía de viajeros<br><br>Cada persona tiene su propio <b>ángel de la guarda</b>. Los ángeles caídos (demonios) siguieron a Lucifer en su rebelión contra Dios. 🙏';
+  }
+
+  // ── EL DIABLO / TENTACIÓN ──
+  if(tiene('diablo','demonio','satanas','satanás','lucifer','tentacion','tentación','mal','maldad','pecado')) {
+    if(tiene('tentacion','tentación','como resistir','vencer el mal')) return '💪 <b>¿Cómo resistir las tentaciones?</b><br><br>Jesús mismo fue tentado por el diablo en el desierto y lo venció con la Palabra de Dios. Nosotros podemos hacer lo mismo:<br><br>🙏 <b>Orar</b> — "No nos dejes caer en tentación"<br>📖 <b>Leer la Biblia</b> — la Palabra es una espada espiritual<br>💒 <b>Ir a Misa</b> — la Eucaristía fortalece<br>🤝 <b>Rodearte de buenos amigos</b><br>✝️ <b>Hacer la Señal de la Cruz</b><br>👼 <b>Pedir ayuda a tu ángel de la guarda</b><br><br>¡No estás solo! El Espíritu Santo está siempre contigo. 💛';
+    return '⚠️ <b>El Diablo</b><br><br>El diablo (Lucifer/Satanás) fue un ángel hermoso que se rebeló contra Dios por orgullo. Su nombre "Lucifer" significa "portador de luz"... pero eligió las tinieblas.<br><br>La Biblia lo describe como el "padre de la mentira" y el "acusador". Tienta a las personas, pero <b>no puede forzar a nadie a pecar</b>. La decisión siempre es nuestra.<br><br>Jesús ya lo venció con su Muerte y Resurrección. Con Cristo, no hay nada que temer. ✝️💪';
+  }
+
+  // ── LA MISA ──
+  if(tiene('misa','liturgia','eucaristia dominical','partes de la misa','misa dominical','ir a misa','por que ir a misa','ofertorio','consagracion','consagración','homilia','homilía')) {
+    if(tiene('partes de la misa','como es la misa','estructura de la misa')) return '⛪ <b>Las partes de la Misa</b><br><br><b>Ritos iniciales:</b><br>✝️ Saludo, acto penitencial, Gloria<br><br><b>Liturgia de la Palabra:</b><br>📖 1ª Lectura (AT), Salmo, 2ª Lectura (NT), Evangelio, Homilía, Credo<br><br><b>Liturgia Eucarística:</b><br>🍞 Ofertorio (llevamos pan y vino)<br>🙏 Plegaria Eucarística (consagración)<br>🕊️ Padre Nuestro, Paz, Comunión<br><br><b>Ritos finales:</b><br>✝️ Bendición y envío<br><br>La Misa dura aprox. 1 hora. Es el acto de culto más importante para un católico. 😊';
+    return '⛪ <b>La Santa Misa</b><br><br>La Misa es la celebración más importante de la fe católica. En ella:<br><br>📖 Escuchamos la Palabra de Dios<br>🍞 El pan y el vino se convierten en el Cuerpo y Sangre de Cristo (consagración)<br>🙏 Nos unimos a Jesús que se ofrece al Padre<br>💒 Recibimos la Comunión<br><br>Los católicos tienen el deber de ir a Misa los <b>domingos y días de fiesta</b>. No ir sin causa grave es pecado grave, porque es el día del Señor. 🙏<br><br><em>"Hagan esto en memoria mía."</em> — Lucas 22:19';
+  }
+
+  // ── CUARESMA / ADVIENTO / TIEMPO LITÚRGICO ──
+  if(tiene('cuaresma','adviento','tiempo liturgico','litúrgico','calendario liturgico','pentecostes','tiempo ordinario','navidad tiempo')) {
+    if(tiene('cuaresma','miercoles de ceniza','miércoles de ceniza','ceniza','ayuno','abstenencia')) return '🙏 <b>La Cuaresma</b><br><br>La Cuaresma son los 40 días antes de Pascua (desde el Miércoles de Ceniza hasta el Jueves Santo). Son 40 días como los que Jesús pasó en el desierto.<br><br>Sus tres pilares:<br>🙏 <b>Oración</b> — más tiempo con Dios<br>🍽️ <b>Ayuno</b> — comer menos para fortalecer el espíritu<br>💛 <b>Limosna</b> — compartir con los demás<br><br>El Miércoles de Ceniza recibimos ceniza en la frente como señal de humildad: <em>"Recuerda que eres polvo y al polvo volverás."</em> Pero también: <em>"Conviértete y cree en el Evangelio."</em>';
+    if(tiene('adviento')) return '🕯️ <b>El Adviento</b><br><br>El Adviento son las 4 semanas antes de Navidad. Es tiempo de preparación y espera. Tiene dos significados:<br><br>🎄 Prepararnos para celebrar el <b>nacimiento de Jesús</b><br>🌟 Prepararnos para su <b>Segunda Venida</b><br><br>La <b>Corona de Adviento</b> tiene 4 velas: 3 moradas y 1 rosa. Se enciende una más cada domingo. La vela rosa es el 3er domingo (Gaudete = alegría). 🕯️<br><br>El color litúrgico es morado (penitencia y espera). El 3er domingo es rosa (alegría cercana). ✨';
+    return '📅 <b>El Año Litúrgico</b><br><br>La Iglesia tiene su propio calendario:<br><br>🕯️ <b>Adviento</b> — espera de Navidad (4 semanas, morado)<br>🎄 <b>Navidad</b> — nacimiento de Jesús (blanco/dorado)<br>📖 <b>Tiempo Ordinario I</b> — (verde)<br>🙏 <b>Cuaresma</b> — preparación a Pascua (morado)<br>✝️ <b>Semana Santa</b> — Pasión de Jesús<br>🎉 <b>Pascua</b> — Resurrección (50 días, blanco)<br>🔥 <b>Pentecostés</b> — Espíritu Santo (rojo)<br>📖 <b>Tiempo Ordinario II</b> — (verde)<br><br>Los colores litúrgicos tienen significado: morado=penitencia, blanco=alegría, rojo=Espíritu/mártires, verde=esperanza. 🌈';
+  }
+
+  // ── FE Y DUDAS ──
+  if(tiene('por que creer','por qué creer','dios existe','existe dios','como sé que dios existe','como se que dios existe','duda de fe','tengo dudas','no creo','ateismo','ateísmo')) {
+    return '💛 <b>¿Por qué creer en Dios?</b><br><br>Es una pregunta muy honesta y válida. Tener dudas no es malo; es señal de que piensas. 😊<br><br>Algunas razones que mucha gente encuentra:<br><br>🌍 <b>La creación</b> — el universo es demasiado ordenado para ser un accidente<br>❤️ <b>El amor</b> — la capacidad humana de amar trasciende lo material<br>🙏 <b>La experiencia personal</b> — millones dicen haber sentido su presencia<br>✝️ <b>Jesucristo</b> — su vida y resurrección son los hechos más documentados de la antigüedad<br><br>La fe no es "creer sin pensar", es "confiar aunque no entiendas todo". Como confías en tus padres aunque no entiendes todo lo que hacen. 💛<br><br>Si tienes dudas, ¡compártelas! Dios no se asusta de las preguntas. 🙏';
+  }
+
+  // ── VOCACIÓN ──
+  if(tiene('vocacion','vocación','ser sacerdote','ser monja','religiosa','consagrada','seminarista','hacerse sacerdote','vida consagrada')) {
+    return '🕊️ <b>La Vocación</b><br><br>Todos tenemos una vocación (un llamado de Dios). Las principales son:<br><br>👐 <b>Sacerdocio</b> — servir a Dios y su pueblo en los sacramentos<br>📿 <b>Vida consagrada</b> — monjes, monjas, religiosas, hermanos<br>💍 <b>Matrimonio</b> — construir una familia cristiana<br>👤 <b>Vida laica</b> — santificarse en el trabajo y familia<br><br>¿Cómo descubrir la vocación? Orando, escuchando, sirviendo a los demás. La paz interior profunda suele ser señal de que vas por buen camino. 💛<br><br>¡Ninguna vocación es más importante que otra! Dios necesita santos en todos los estados de vida. 🙏';
+  }
+
+  // ── FAMILIA / VALORES ──
+  if(tiene('familia','padres','papa','mama','hermanos','respetar','obedecer','peleas en casa','problemas en casa')) {
+    return '👨‍👩‍👧 <b>La Familia</b><br><br>La familia es la primera escuela de la fe. Los padres son los primeros catequistas de sus hijos. Por eso el 4° mandamiento dice: <em>"Honra a tu padre y a tu madre."</em><br><br>Dios quiere que la familia sea un lugar de:<br>❤️ Amor incondicional<br>🛡️ Seguridad y confianza<br>🙏 Oración y fe compartida<br>🤝 Perdón y reconciliación<br><br>Si hay problemas en casa, recuerda: Jesús también vivió en una familia (la Sagrada Familia: Jesús, María y José). Ellos son el modelo. Puedes pedir su ayuda. 💛';
+  }
+
+  // ── PERDÓN / RECONCILIACIÓN PERSONAL ──
+  if(tiene('como perdonar','no puedo perdonar','me cuesta perdonar','perdonar a alguien','me hicieron daño','rencor','enojo con alguien')) {
+    return '💛 <b>El Perdón</b><br><br>Perdonar es uno de los actos más difíciles y más valientes. Jesús nos pide perdonar incluso a los enemigos. 😊<br><br>Perdonar <b>no significa</b> decir que lo que te hicieron estuvo bien, ni olvidar, ni seguir con alguien que te lastima. Significa <b>soltar el rencor</b> para que no te lastime a ti.<br><br>Jesús perdonó desde la Cruz: <em>"Padre, perdónalos, porque no saben lo que hacen."</em><br><br>Si te cuesta mucho, ora así: <em>"Señor, yo no puedo perdonar solo/a. Ayúdame a perdonar con tu fuerza."</em> Dios puede hacer en ti lo que tú solo no puedes. 🙏💛';
+  }
+
+  // ── AMIGOS / BULLYING ──
+  if(tiene('bullying','acoso','me molestan','se burlan','maltrato','amigos','soledad','no tengo amigos','me siento solo','me siento sola')) {
+    return '💛 <b>Un mensaje para ti</b><br><br>Si alguien te molesta o te hace sentir mal, quiero que sepas: <b>eso está mal, y no es tu culpa.</b><br><br>Jesús siempre defendió a los más vulnerables. Él te ve, te conoce y te ama exactamente como eres. 🙏<br><br>Algunos pasos:<br>🗣️ Cuéntaselo a un adulto de confianza (padre, maestro, catequista)<br>🙏 Reza pidiendo ayuda y fortaleza<br>💛 Busca amigos que te traten bien y te hagan crecer<br>✝️ Recuerda: eres hijo/a de Dios, y eso te da una dignidad que nadie puede quitarte<br><br><em>"Yo estoy con ustedes todos los días."</em> — Mateo 28:20 😊';
+  }
+
   // ── RESPUESTA POR DEFECTO ──
-  return `¡Hola! 😊 Puedo ayudarte con:<br><br>⏰ <b>Horarios</b> — "¿Qué hora es el grupo San Pedro?"<br>👩‍🏫 <b>Catequistas</b> — "¿Quién da el grupo Santa Lucía?"<br>📍 <b>Salones</b> — "¿Dónde es el grupo San Mateo?"<br>📢 <b>Avisos</b> — "¿Qué avisos hay?"<br>✝️ <b>Sacramentos</b> — "¿Qué es la Confirmación?"<br>📜 <b>Mandamientos</b>, 🙏 <b>Oraciones</b>, 📖 <b>Biblia</b>, 🌹 <b>María</b>, 👼 <b>Santos</b><br><br>¡Escribe tu pregunta y te respondo! 🙏`;
+  return `¡Hola! 😊 Puedo ayudarte con:<br><br>⏰ <b>Horarios y grupos</b> — "¿Qué hora es el grupo San Pedro?"<br>📢 <b>Avisos</b> — "¿Qué avisos hay?"<br>✝️ <b>Sacramentos</b> — Bautismo, Comunión, Confirmación...<br>📜 <b>Mandamientos</b> — los 10 completos<br>🙏 <b>Oraciones</b> — Padre Nuestro, Ave María, Credo...<br>📖 <b>Biblia</b> — Jesús, María, Moisés, David, Noé...<br>⛪ <b>La Misa</b> y el año litúrgico<br>🌟 <b>Ángeles y Santos</b><br>☁️ <b>Cielo, Purgatorio</b> y los novísimos<br>💛 <b>Fe, perdón, familia, amigos</b><br><br>¡Escribe tu pregunta y te respondo! 🙏`;
 }
 function quickIA(q) { document.getElementById('ia-input').value=q; sendIA(); }
 function appendIAMsg(text,who) {
