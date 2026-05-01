@@ -1894,30 +1894,151 @@ async function cargarSheet() {
   }
 }
 
+// Palabras vacías que no aportan significado para la búsqueda
+const STOPWORDS = new Set(['como','cual','cuales','que','quien','quienes','donde','cuando','cuanto',
+  'cuantos','por','para','con','sin','los','las','del','una','uno','unos','unas','este','esta',
+  'estos','estas','ese','esa','esos','esas','hay','tiene','tienen','puede','pueden','sabe','son',
+  'esta','esta','son','ser','han','haber','tener','hacer','decir','ver','dar','saber','querer',
+  'llegar','pasar','deber','poner','hablar','llevar','dejar','seguir','encontrar','llamar','venir',
+  'pensar','volverse','tomar','conocer','vivir','sentir','tratar','mirar','contar','empezar',
+  'esperar','buscar','existir','entrar','trabajar','escribir','perder','producir','ocurrir',
+  'entender','pedir','recibir','recordar','terminar','permitir','aparecer','conseguir','comenzar',
+  'servir','sacar','necesitar','mantener','resultar','leer','caer','cambiar','presentar','crear',
+  'abrir','considerar','oír','acabar','convertir','ganar','suponer','obtener','responder',
+  'explicar','preguntar','llegar','que','mas','pero','sus','le','ya','cuando']);
+
+// Sinónimos y variantes para expandir búsqueda
+const SINONIMOS = {
+  'misa': ['eucaristia','celebracion','liturgia','domingo','iglesia'],
+  'oracion': ['rezar','orar','oración','rezo','padre nuestro','ave maria'],
+  'pecado': ['pecar','malo','maldad','error','falta','ofensa'],
+  'dios': ['señor','padre','creador','altisimo'],
+  'jesus': ['cristo','señor','hijo de dios','jesucristo','buen pastor'],
+  'virgen': ['maria','nuestra señora','madre de dios','guadalupe'],
+  'iglesia': ['parroquia','catedral','templo','capilla'],
+  'catequesis': ['catekids','clases','formacion','grupo','grupos'],
+  'bautismo': ['bautizar','bautizado','pila bautismal'],
+  'communion': ['comunion','eucaristia','primera comunion','hostia'],
+  'confirmacion': ['confirmarse','espiritu santo','crismacion'],
+  'confesion': ['reconciliacion','perdon','penitencia','confesar'],
+  'biblia': ['escritura','evangelio','libro sagrado','palabra de dios'],
+  'santo': ['santidad','canonizado','beato','santos'],
+  'cielo': ['paraiso','vida eterna','salvacion','gloria'],
+  'muerte': ['morir','difuntos','fallecido','funeral'],
+  'navidad': ['nacimiento','belen','noche buena','diciembre'],
+  'pascua': ['resurreccion','semana santa','viernes santo'],
+  'mandamiento': ['mandamientos','ley de dios','ley'],
+  'sacramento': ['sacramentos','gracia','signo'],
+  'angel': ['angeles','arcangel','guardian'],
+  'papa': ['pontifice','vaticano','obispo de roma'],
+  'cuaresma': ['ayuno','abstenencia','ceniza','cuarenta dias'],
+};
+
+function extraerClaves(texto) {
+  const norm = normalizar(texto);
+  const palabras = norm.split(/\s+/).filter(p => p.length > 2 && !STOPWORDS.has(p));
+  // Agregar sinónimos relevantes
+  const extra = [];
+  for(const [clave, syns] of Object.entries(SINONIMOS)) {
+    if(palabras.some(p => p.includes(clave) || clave.includes(p) || syns.some(s => norm.includes(s)))) {
+      extra.push(clave, ...syns);
+    }
+  }
+  return [...new Set([...palabras, ...extra])];
+}
+
+function puntuarCoincidencia(clavesMensaje, row) {
+  const textoRow = normalizar(row.pregunta + ' ' + row.tema);
+  const clavesRow = extraerClaves(textoRow);
+  if(!clavesRow.length) return 0;
+
+  let puntos = 0;
+  let totalClaves = new Set([...clavesMensaje, ...clavesRow]).size;
+
+  for(const cm of clavesMensaje) {
+    for(const cr of clavesRow) {
+      if(cm === cr) { puntos += 2; break; }                          // exacta
+      if(cm.includes(cr) || cr.includes(cm)) { puntos += 1.5; break; } // parcial
+      if(cr.startsWith(cm.slice(0,4)) || cm.startsWith(cr.slice(0,4))) { puntos += 1; break; } // raíz
+    }
+  }
+  // Bonus si el tema coincide directamente
+  if(row.tema && clavesMensaje.some(c => normalizar(row.tema).includes(c))) puntos += 3;
+
+  return puntos / Math.max(totalClaves, 1);
+}
+
+function formatearRespuestaCateKids(respuesta, tema) {
+  // Si la respuesta ya tiene formato HTML o emojis, la dejamos como está
+  if(respuesta.includes('<br>') || respuesta.includes('<b>')) {
+    return respuesta;
+  }
+  // Añadir emoji según el tema
+  const emojis = {
+    'sacramento': '✝️', 'sacramentos': '✝️', 'bautismo': '💧', 'eucaristia': '🍞',
+    'comunion': '🍞', 'confirmacion': '🕊️', 'confesion': '🙏', 'reconciliacion': '🙏',
+    'oracion': '🙏', 'oraciones': '🙏', 'biblia': '📖', 'evangelio': '📖',
+    'maria': '🌹', 'virgen': '🌹', 'santos': '👼', 'santo': '👼',
+    'mandamiento': '📜', 'mandamientos': '📜', 'misa': '⛪', 'iglesia': '⛪',
+    'jesus': '✝️', 'dios': '☁️', 'fe': '💛', 'navidad': '🎄',
+    'pascua': '🎉', 'cuaresma': '🙏', 'angel': '👼', 'angeles': '👼',
+    'horario': '⏰', 'horarios': '⏰', 'grupo': '👥', 'grupos': '👥',
+    'catequesis': '📚', 'catequista': '👩‍🏫', 'parroquia': '⛪',
+    'cielo': '☁️', 'pecado': '⚠️', 'virtud': '⭐', 'virtudes': '⭐',
+  };
+  const temaLow = normalizar(tema || '');
+  let emoji = '😊';
+  for(const [k, v] of Object.entries(emojis)) {
+    if(temaLow.includes(k)) { emoji = v; break; }
+  }
+  // Formatear: negrita para el tema, saltos de línea limpios
+  let r = respuesta.trim().replace(/\n/g, '<br>');
+  // Si la respuesta es muy corta, añadir una frase cálida de CateKids
+  const frases = [
+    ' 🙏', ' ¡Que Dios te bendiga! 💛', ' ✨', ' ¡Seguimos aprendiendo juntos! 😊',
+    ' ¡Jesús te ama! ✝️', ' 🌟'
+  ];
+  const frase = frases[Math.floor(Math.random() * frases.length)];
+  if(r.length < 120 && !r.includes('🙏') && !r.includes('✝️') && !r.includes('😊')) r += frase;
+  if(tema) return `${emoji} <b>${tema}</b><br><br>${r}`;
+  return `${emoji} ${r}`;
+}
+
 function buscarEnSheet(msg, datos) {
   if(!datos || !datos.length) return null;
   const q = normalizar(msg);
+  const clavesMensaje = extraerClaves(msg);
+
+  // 1. Coincidencia exacta de pregunta
   for(const row of datos) {
-    if(normalizar(row.pregunta) === q) return row.respuesta;
-  }
-  for(const row of datos) {
-    const pNorm = normalizar(row.pregunta);
-    if(q.includes(pNorm) || pNorm.includes(q)) return row.respuesta;
-  }
-  const palabrasQ = q.split(/\s+/).filter(p => p.length > 3);
-  let mejorPuntaje = 0, mejorRespuesta = null;
-  for(const row of datos) {
-    const pNorm = normalizar(row.pregunta);
-    const palabrasP = pNorm.split(/\s+/).filter(p => p.length > 3);
-    if(!palabrasP.length) continue;
-    const coinciden = palabrasP.filter(p => q.includes(p) || palabrasQ.some(w => w.includes(p) || p.includes(w)));
-    const puntaje = coinciden.length / palabrasP.length;
-    if(puntaje > mejorPuntaje && puntaje >= 0.5) {
-      mejorPuntaje = puntaje;
-      mejorRespuesta = row.respuesta;
+    if(normalizar(row.pregunta) === q) {
+      return formatearRespuestaCateKids(row.respuesta, row.tema);
     }
   }
-  return mejorRespuesta;
+
+  // 2. Pregunta del sheet contenida en el mensaje o viceversa
+  for(const row of datos) {
+    const pNorm = normalizar(row.pregunta);
+    if(q.includes(pNorm) || pNorm.includes(q)) {
+      return formatearRespuestaCateKids(row.respuesta, row.tema);
+    }
+  }
+
+  // 3. Puntuación por palabras clave con sinónimos
+  if(!clavesMensaje.length) return null;
+  let mejorPuntaje = 0, mejorRow = null;
+  for(const row of datos) {
+    const puntaje = puntuarCoincidencia(clavesMensaje, row);
+    if(puntaje > mejorPuntaje) {
+      mejorPuntaje = puntaje;
+      mejorRow = row;
+    }
+  }
+  // Umbral: puntaje mínimo para considerar que hay coincidencia real
+  if(mejorPuntaje >= 0.25 && mejorRow) {
+    return formatearRespuestaCateKids(mejorRow.respuesta, mejorRow.tema);
+  }
+  return null;
 }
 
 async function sendIA() {
@@ -1930,17 +2051,19 @@ async function sendIA() {
 
   const [datos] = await Promise.all([
     cargarSheet(),
-    new Promise(r => setTimeout(r, 600 + Math.random() * 500))
+    new Promise(r => setTimeout(r, 500 + Math.random() * 400))
   ]);
 
   removeIATyping();
 
+  // Buscar en sheet con motor de palabras clave
   const respSheet = buscarEnSheet(msg, datos);
   if(respSheet) {
-    appendIAMsg(respSheet.replace(/\n/g,'<br>'), 'bot');
+    appendIAMsg(respSheet, 'bot');
     return;
   }
 
+  // Fallback: respuestas locales integradas
   const respLocal = responderCatequista(msg);
   appendIAMsg(respLocal, 'bot');
 }
