@@ -2056,15 +2056,22 @@ async function sendIA() {
 
   removeIATyping();
 
-  // Buscar en sheet con motor de palabras clave
+  // 1. Primero buscar en el HTML (horarios, grupos, catequesis, fe)
+  const respLocal = responderCatequista(msg);
+  const esDefault = respLocal.includes('Puedo ayudarte con:');
+  if(!esDefault) {
+    appendIAMsg(respLocal, 'bot');
+    return;
+  }
+
+  // 2. Si no encontro en HTML, buscar en Google Sheet
   const respSheet = buscarEnSheet(msg, datos);
   if(respSheet) {
     appendIAMsg(respSheet, 'bot');
     return;
   }
 
-  // Fallback: respuestas locales integradas
-  const respLocal = responderCatequista(msg);
+  // 3. Ninguno encontro respuesta: mostrar menu de ayuda
   appendIAMsg(respLocal, 'bot');
 }
 
